@@ -85,6 +85,14 @@ type invalidStepError struct {
 	err  error
 }
 
+func (st invalidStepError) Error() string {
+	return fmt.Sprintf("%s **** %v", st.step, st.err)
+}
+
+func (st invalidStepError) Unwarp() error {
+	return st.err
+}
+
 // notEnoughObjectsError - ошибка, которая возникает,
 // когда в игре закончились объекты определенного типа
 type notEnoughObjectsError any
@@ -96,7 +104,18 @@ type commandLimitExceededError any
 // objectLimitExceededError - ошибка, которая возникает,
 // когда игрок превысил лимит на количество объектов
 // определенного типа в инвентаре
-type objectLimitExceededError any
+type objectLimitExceededError struct {
+	obj thing
+	err error
+}
+
+func (obje objectLimitExceededError) Error() string {
+	return fmt.Sprintf("you already have a %s", obje.obj)
+}
+
+func (obje objectLimitExceededError) Unwarp() error {
+	return obje.err
+}
 
 // gameOverError - ошибка, которая произошла в игре
 type gameOverError struct {
@@ -139,7 +158,7 @@ func (p *player) do(cmd command, obj thing) error {
 		p.nEaten++
 	case take:
 		if p.has(obj) {
-			return fmt.Errorf("you already have a %s", obj)
+			return objectLimitExceededError{obj, errors.New("уже есть")}
 		}
 		p.inventory = append(p.inventory, obj)
 	case talk:
@@ -190,7 +209,9 @@ func (g *game) execute(st step) error {
 
 	// выполняем команду от имени игрока
 	if err := g.player.do(st.cmd, st.obj); err != nil {
-		return err
+
+		// return err
+		return invalidStepError{st.String(), err}
 	}
 
 	g.nSteps++
@@ -223,6 +244,7 @@ func main() {
 	steps := []step{
 		{eat, apple},
 		{talk, bob},
+		{take, coin},
 		{take, coin},
 		{eat, mushroom},
 	}
